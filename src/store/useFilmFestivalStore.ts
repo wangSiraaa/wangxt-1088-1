@@ -297,6 +297,12 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       },
 
       addWork: (workData) => {
+        if (get().resultsPublished) {
+          return buildValidationResult(
+            { frozen: '入围结果已公布，无法新增作品' },
+            {}
+          );
+        }
         const validation = get().validateSubmission(workData as Work);
         if (!validation.valid) return validation;
 
@@ -334,6 +340,13 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
         const work = state.works.find((w) => w.id === id);
         if (!work) return buildValidationResult({ work: '作品不存在' }, {});
 
+        if (state.resultsPublished) {
+          return buildValidationResult(
+            { frozen: '入围结果已公布，所有作品资料不可修改' },
+            {}
+          );
+        }
+
         const frozen = state.isWorkFrozen(work);
         const updatedFields = Object.keys(updates) as (keyof Work)[];
 
@@ -343,7 +356,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
           );
           if (invalidFields.length > 0) {
             return buildValidationResult(
-              { frozen: `入围作品已冻结，仅允许修改：${ALLOWED_AFTER_FREEZE.join('、')}` },
+              { frozen: `作品已冻结，仅允许修改：${ALLOWED_AFTER_FREEZE.join('、')}` },
               {}
             );
           }
@@ -389,9 +402,11 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       },
 
       deleteWork: (id) => {
-        const work = get().works.find((w) => w.id === id);
+        const state = get();
+        const work = state.works.find((w) => w.id === id);
         if (!work) return false;
-        if (get().isWorkFrozen(work)) return false;
+        if (state.resultsPublished) return false;
+        if (state.isWorkFrozen(work)) return false;
 
         set((s) => ({
           works: s.works.filter((w) => w.id !== id),
@@ -436,8 +451,8 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       },
 
       isWorkFrozen: (work) => {
+        if (get().resultsPublished) return true;
         return (
-          (get().resultsPublished && work.status === 'selected') ||
           work.status === 'announced' ||
           work.status === 'screening_scheduled' ||
           !!work.frozenAt
@@ -445,12 +460,14 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       },
 
       canEditField: (work, field) => {
+        if (get().resultsPublished) return false;
         if (!get().isWorkFrozen(work)) return true;
         if (!ALLOWED_AFTER_FREEZE.includes(field)) return false;
         return get().canFieldEditAfterFreeze(work, field);
       },
 
       canEditWork: (work) => {
+        if (get().resultsPublished) return false;
         if (!get().isWorkFrozen(work)) return true;
         const canSupplement = ALLOWED_AFTER_FREEZE.some((field) => {
           const val = work[field];
@@ -460,6 +477,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       },
 
       canFieldEditAfterFreeze: (work, field) => {
+        if (get().resultsPublished) return false;
         if (!get().isWorkFrozen(work)) return false;
         if (!ALLOWED_AFTER_FREEZE.includes(field)) return false;
         const currentValue = work[field];
@@ -491,7 +509,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
           works: s.works.map((w) =>
             w.status === 'selected'
               ? { ...w, status: 'announced' as const, frozenAt: now, updatedAt: now }
-              : w
+              : { ...w, frozenAt: now, updatedAt: now }
           ),
         }));
       },

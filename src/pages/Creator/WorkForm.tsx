@@ -20,7 +20,7 @@ const fieldLabels: Record<string, string> = {
 export default function WorkForm({ work, onClose }: WorkFormProps) {
   const {
     categories, addWork, updateWork, canEditWork, canEditField,
-    isWorkFrozen, validateSubmission,
+    isWorkFrozen, validateSubmission, resultsPublished,
   } = useFilmFestivalStore();
 
   const [formData, setFormData] = useState({
@@ -51,8 +51,8 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
   const selectedCategory = categories.find((c) => c.id === formData.category);
   const isOverDuration = selectedCategory && formData.duration > selectedCategory.maxDuration;
   const isEditing = !!work;
-  const canEdit = isEditing ? canEditWork(work) : true;
-  const frozen = isEditing ? isWorkFrozen(work) : false;
+  const canEdit = resultsPublished ? false : (isEditing ? canEditWork(work) : true);
+  const frozen = resultsPublished || (isEditing ? isWorkFrozen(work) : false);
 
   const renderFieldDisabled = (field: keyof typeof formData): boolean => {
     if (!canEdit) return true;
@@ -82,7 +82,7 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
     e.preventDefault();
 
     if (!canEdit) {
-      alert('该作品已锁定，无法修改');
+      alert(resultsPublished ? '入围结果已公布，所有作品资料不可修改' : '该作品已锁定，无法修改');
       return;
     }
 
@@ -154,9 +154,11 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
                 {isEditing ? '编辑作品' : '投稿作品'}
               </h3>
               <p className="text-sm text-gray-500 mt-0.5">
-                {frozen
-                  ? '入围作品资料已锁定，仅可补交放映素材和海报'
-                  : isEditing ? '修改将生成新的版本记录，供评审查看' : '请完整填写所有必填项'}
+                {resultsPublished
+                  ? '结果已公布，所有作品资料不可修改'
+                  : frozen
+                    ? '入围作品资料已锁定，仅可补交放映素材和海报'
+                    : isEditing ? '修改将生成新的版本记录，供评审查看' : '请完整填写所有必填项'}
               </p>
             </div>
           </div>
@@ -169,7 +171,19 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
-          {frozen && (
+          {resultsPublished && (
+            <div className="mb-5 bg-gray-100 border-2 border-gray-300 rounded-xl p-4 flex items-start space-x-3">
+              <Lock className="w-5 h-5 text-gray-500 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-semibold text-gray-800">结果已公布，作品全部锁定</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  入围结果公布后，所有作品资料均不可修改或删除。
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!resultsPublished && frozen && (
             <div className="mb-5 bg-amber-50 border-2 border-amber-200 rounded-xl p-4 flex items-start space-x-3">
               <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 flex-shrink-0" />
               <div>
@@ -499,7 +513,7 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
               </div>
             </div>
 
-            {frozen && (
+            {!resultsPublished && frozen && (
               <div className="bg-white rounded-xl p-5 border-2 border-emerald-200 bg-emerald-50/30">
                 <h4 className="font-semibold text-emerald-700 mb-4 flex items-center space-x-2">
                   <Unlock className="w-4 h-4" />
@@ -594,7 +608,9 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
             >
               {submitStatus === 'success'
                 ? '已保存 ✓'
-                : isEditing ? (frozen ? '补交资料' : '保存修改') : '提交作品'}
+                : resultsPublished
+                  ? '已锁定'
+                  : isEditing ? (frozen ? '补交资料' : '保存修改') : '提交作品'}
             </button>
           </div>
         </div>

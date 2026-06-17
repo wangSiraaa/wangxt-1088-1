@@ -61,22 +61,27 @@ export default function CreatorPage() {
         </div>
         <button
           onClick={handleAdd}
-          className="flex items-center space-x-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20 font-medium"
+          disabled={resultsPublished}
+          className={`flex items-center space-x-2 px-5 py-2.5 rounded-xl transition-colors shadow-lg font-medium ${
+            resultsPublished
+              ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/20'
+          }`}
         >
           <Plus className="w-5 h-5" />
-          <span>上传作品</span>
+          <span>{resultsPublished ? '已截止' : '上传作品'}</span>
         </button>
       </div>
 
       {resultsPublished && (
         <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-2xl p-5 flex items-start space-x-4">
           <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm flex-shrink-0">
-            <CheckCircle className="w-6 h-6 text-purple-500" />
+            <Lock className="w-6 h-6 text-purple-500" />
           </div>
           <div className="flex-1">
             <p className="font-bold text-purple-800 text-lg">🎬 入围结果已公布</p>
             <p className="text-sm text-purple-600 mt-1">
-              入围作品的核心资料已锁定，无法修改；但仍可补交放映素材和宣传海报。
+              所有作品资料已全部锁定，不可新增、编辑或删除。
             </p>
           </div>
         </div>
@@ -118,10 +123,15 @@ export default function CreatorPage() {
           </p>
           <button
             onClick={handleAdd}
-            className="inline-flex items-center space-x-2 bg-indigo-600 text-white px-8 py-3.5 rounded-xl hover:bg-indigo-700 transition-colors font-medium shadow-lg shadow-indigo-500/20"
+            disabled={resultsPublished}
+            className={`inline-flex items-center space-x-2 px-8 py-3.5 rounded-xl transition-colors font-medium shadow-lg ${
+              resultsPublished
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/20'
+            }`}
           >
             <Plus className="w-5 h-5" />
-            <span>立即投稿</span>
+            <span>{resultsPublished ? '投稿已截止' : '立即投稿'}</span>
           </button>
         </div>
       ) : (
@@ -129,15 +139,15 @@ export default function CreatorPage() {
           {works.map((work) => {
             const category = categories.find((c) => c.id === work.category);
             const status = statusConfig[work.status];
-            const canEditBasic = canEditWork(work);
-            const frozen = isWorkFrozen(work);
+            const canEditBasic = !resultsPublished && canEditWork(work);
+            const frozen = resultsPublished || isWorkFrozen(work);
             const validation = validateSubmission(work);
             const versions = getWorkVersions(work.id);
-            const needsSupplement = frozen && (
+            const needsSupplement = !resultsPublished && frozen && (
               (canFieldEditAfterFreeze(work, 'screeningMaterialUrl') && !work.screeningMaterialUrl) ||
               (canFieldEditAfterFreeze(work, 'posterUrl') && !work.posterUrl)
             );
-            const canEdit = canEditBasic || needsSupplement;
+            const canEdit = !resultsPublished && (canEditBasic || needsSupplement);
 
             return (
               <div
@@ -339,7 +349,7 @@ export default function CreatorPage() {
                       </div>
                     )}
 
-                    {frozen && needsSupplement && (
+                    {!resultsPublished && frozen && needsSupplement && (
                       <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200 flex items-start space-x-3">
                         <Unlock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
                         <div className="flex-1">
@@ -354,6 +364,20 @@ export default function CreatorPage() {
                             {canFieldEditAfterFreeze(work, 'posterUrl') && !work.posterUrl && (
                               <span className="ml-1 bg-amber-100 px-1.5 py-0.5 rounded">宣传海报</span>
                             )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {resultsPublished && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-xl border border-gray-200 flex items-start space-x-3">
+                        <Lock className="w-5 h-5 text-gray-500 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-gray-700">
+                            作品已锁定
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            入围结果已公布，所有作品资料不可修改。
                           </p>
                         </div>
                       </div>
