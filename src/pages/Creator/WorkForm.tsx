@@ -124,9 +124,17 @@ export default function WorkForm({ work, onClose }: WorkFormProps) {
       );
     }
     if (editable) {
+      const canSupplement = canEditField(work!, key);
+      if (canSupplement) {
+        return (
+          <span className="inline-flex items-center space-x-1 ml-2 text-xs text-emerald-600">
+            <Unlock className="w-3 h-3" /><span>可补交</span>
+          </span>
+        );
+      }
       return (
-        <span className="inline-flex items-center space-x-1 ml-2 text-xs text-emerald-600">
-          <Unlock className="w-3 h-3" /><span>可补交</span>
+        <span className="inline-flex items-center space-x-1 ml-2 text-xs text-gray-500">
+          <Lock className="w-3 h-3" /><span>已补交</span>
         </span>
       );
     }

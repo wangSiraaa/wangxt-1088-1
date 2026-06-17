@@ -272,16 +272,16 @@ export default function CreatorPage() {
                           </span>
                         </div>
                         <div className={`flex items-center space-x-2 text-xs ${
-                          !validation.errors.find((e) => e.includes('片长'))
+                          !validation.errorList.find((e) => e.includes('片长'))
                             ? 'text-emerald-600'
                             : 'text-red-500'
                         }`}>
                           <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                            !validation.errors.find((e) => e.includes('片长'))
+                            !validation.errorList.find((e) => e.includes('片长'))
                               ? 'bg-emerald-100'
                               : 'bg-red-100'
                           }`}>
-                            {!validation.errors.find((e) => e.includes('片长'))
+                            {!validation.errorList.find((e) => e.includes('片长'))
                               ? <CheckCircle className="w-3.5 h-3.5" />
                               : <XCircle className="w-3.5 h-3.5" />
                             }
@@ -294,21 +294,21 @@ export default function CreatorPage() {
                           </span>
                         </div>
                       </div>
-                      {validation.errors.length > 0 && (
+                      {validation.errorList.length > 0 && (
                         <div className="mt-3 p-3 bg-red-50 rounded-lg border border-red-100">
                           <p className="text-xs font-medium text-red-700 mb-1">⚠️ 未通过校验项</p>
                           <ul className="text-xs text-red-600 space-y-0.5 list-disc list-inside">
-                            {validation.errors.map((e, i) => (
+                            {validation.errorList.map((e, i) => (
                               <li key={i}>{e}</li>
                             ))}
                           </ul>
                         </div>
                       )}
-                      {validation.warnings.length > 0 && validation.errors.length === 0 && (
+                      {validation.warningList.length > 0 && validation.errorList.length === 0 && (
                         <div className="mt-3 p-3 bg-amber-50 rounded-lg border border-amber-100">
                           <p className="text-xs font-medium text-amber-700 mb-1">💡 提示</p>
                           <ul className="text-xs text-amber-600 space-y-0.5 list-disc list-inside">
-                            {validation.warnings.map((w, i) => (
+                            {validation.warningList.map((w, i) => (
                               <li key={i}>{w}</li>
                             ))}
                           </ul>

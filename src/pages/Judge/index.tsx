@@ -260,8 +260,8 @@ export default function JudgePage() {
                   const versions = getWorkVersions(work.id);
                   const validation = validateSubmission(work);
                   const frozen = isWorkFrozen(work);
-                  const hasWarnings = validation.warnings.length > 0;
-                  const hasErrors = validation.errors.length > 0;
+                  const hasWarnings = validation.warningList.length > 0;
+                  const hasErrors = validation.errorList.length > 0;
 
                   return (
                     <div
@@ -312,7 +312,7 @@ export default function JudgePage() {
                               {!hasErrors && hasWarnings && (
                                 <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded-full text-xs font-medium flex items-center space-x-1">
                                   <AlertTriangle className="w-3 h-3" />
-                                  <span>{validation.warnings.length} 项警告</span>
+                                  <span>{validation.warningList.length} 项警告</span>
                                 </span>
                               )}
                               {!hasErrors && !hasWarnings && (

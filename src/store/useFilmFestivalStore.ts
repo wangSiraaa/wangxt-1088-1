@@ -26,6 +26,19 @@ function generateId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function buildValidationResult(
+  errors: Record<string, string>,
+  warnings: Record<string, string>
+): ValidationResult {
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors,
+    warnings,
+    errorList: Object.values(errors),
+    warningList: Object.values(warnings),
+  };
+}
+
 function getWorkSnapshot(work: Work): WorkSnapshot {
   const { id, createdAt, updatedAt, version, frozenAt, ...rest } = work;
   return rest;
@@ -54,6 +67,8 @@ interface FilmFestivalStore {
   currentRole: UserRole;
   resultsPublished: boolean;
   currentUser: string;
+  maxWorksPerCategory: number;
+  maxWorksPerRegion: number;
 
   setCurrentRole: (role: UserRole) => void;
   setCurrentUser: (user: string) => void;
@@ -73,6 +88,7 @@ interface FilmFestivalStore {
 
   isWorkFrozen: (work: Work) => boolean;
   canEditField: (work: Work, field: keyof Work) => boolean;
+  canFieldEditAfterFreeze: (work: Work, field: keyof Work) => boolean;
   canEditWork: (work: Work) => boolean;
 
   reviewWork: (
@@ -95,6 +111,7 @@ interface FilmFestivalStore {
   reorderScreenings: (sessionId: string, screenings: ScreeningSession['screenings']) => void;
 
   smartAllocateToSession: (sessionId: string, workIds: string[]) => AllocationResult;
+  getAllocationWarnings: (sessionId: string) => string[];
   getSchedulingLogs: (sessionId?: string) => SchedulingLog[];
 
   getPipelineMilestones: (workId: string) => PipelineMilestone[];
@@ -233,6 +250,8 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       currentRole: 'creator',
       resultsPublished: false,
       currentUser: '当前用户',
+      maxWorksPerCategory: 2,
+      maxWorksPerRegion: 2,
 
       setCurrentRole: (role) => set({ currentRole: role }),
       setCurrentUser: (user) => set({ currentUser: user }),
@@ -274,11 +293,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
           }
         }
 
-        return {
-          valid: Object.keys(errors).length === 0,
-          errors,
-          warnings,
-        };
+        return buildValidationResult(errors, warnings);
       },
 
       addWork: (workData) => {
@@ -317,7 +332,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
       updateWork: (id, updates, changeDescription = '修改作品信息') => {
         const state = get();
         const work = state.works.find((w) => w.id === id);
-        if (!work) return { valid: false, errors: { work: '作品不存在' }, warnings: {} };
+        if (!work) return buildValidationResult({ work: '作品不存在' }, {});
 
         const frozen = state.isWorkFrozen(work);
         const updatedFields = Object.keys(updates) as (keyof Work)[];
@@ -327,13 +342,10 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
             (f) => !ALLOWED_AFTER_FREEZE.includes(f)
           );
           if (invalidFields.length > 0) {
-            return {
-              valid: false,
-              errors: {
-                frozen: `入围作品已冻结，仅允许修改：${ALLOWED_AFTER_FREEZE.join('、')}`,
-              },
-              warnings: {},
-            };
+            return buildValidationResult(
+              { frozen: `入围作品已冻结，仅允许修改：${ALLOWED_AFTER_FREEZE.join('、')}` },
+              {}
+            );
           }
         }
 
@@ -346,7 +358,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
         const diffFields = computeDiff(oldSnapshot, newSnapshot);
 
         if (diffFields.length === 0) {
-          return { valid: true, errors: {}, warnings: {} };
+          return buildValidationResult({}, {});
         }
 
         const forSubmission = diffFields.some(
@@ -373,7 +385,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
           workVersions: [...s.workVersions, versionRecord],
         }));
 
-        return { valid: true, errors: {}, warnings: {} };
+        return buildValidationResult({}, {});
       },
 
       deleteWork: (id) => {
@@ -434,12 +446,24 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
 
       canEditField: (work, field) => {
         if (!get().isWorkFrozen(work)) return true;
-        return ALLOWED_AFTER_FREEZE.includes(field);
+        if (!ALLOWED_AFTER_FREEZE.includes(field)) return false;
+        return get().canFieldEditAfterFreeze(work, field);
       },
 
       canEditWork: (work) => {
         if (!get().isWorkFrozen(work)) return true;
-        return work.status !== 'selected';
+        const canSupplement = ALLOWED_AFTER_FREEZE.some((field) => {
+          const val = work[field];
+          return !val || (typeof val === 'string' && val.trim() === '');
+        });
+        return canSupplement;
+      },
+
+      canFieldEditAfterFreeze: (work, field) => {
+        if (!get().isWorkFrozen(work)) return false;
+        if (!ALLOWED_AFTER_FREEZE.includes(field)) return false;
+        const currentValue = work[field];
+        return !currentValue || (typeof currentValue === 'string' && currentValue.trim() === '');
       },
 
       reviewWork: (id, score, comment, status) => {
@@ -611,16 +635,18 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
         const session = state.screeningSessions.find((s) => s.id === sessionId);
         const warnings: string[] = [];
         const appliedRules: AllocationBasis[] = [];
-        if (!session) return { sessionId, screenings: [], warnings, appliedRules };
+        const allocated: { workId: string; title: string }[] = [];
+        const skipped: { workId: string; title: string; reason: string }[] = [];
+        if (!session) return { sessionId, screenings: [], allocated, skipped, warnings, appliedRules };
 
         const validWorks = workIds
           .map((id) => state.works.find((w) => w.id === id))
-          .filter((w): w is Work => !!w && w.status === 'selected' || w?.status === 'announced' || w?.status === 'screening_scheduled');
+          .filter((w): w is Work => !!w && (w.status === 'selected' || w.status === 'announced' || w.status === 'screening_scheduled'));
 
         const existingWorkIds = new Set(session.screenings.map((sc) => sc.workId));
         const newWorks = validWorks.filter((w) => !existingWorkIds.has(w.id));
 
-        const regionQuota = 2;
+        const regionQuota = state.maxWorksPerRegion;
         const currentRegionCount: Record<string, number> = {};
         session.screenings.forEach((sc) => {
           const w = state.works.find((ww) => ww.id === sc.workId);
@@ -638,7 +664,7 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
           const bRegionOver = (currentRegionCount[b.region] || 0) >= regionQuota;
           if (aRegionOver !== bRegionOver) return aRegionOver ? 1 : -1;
 
-          const maxPerCat = session.maxWorksPerCategory || 3;
+          const maxPerCat = session.maxWorksPerCategory || state.maxWorksPerCategory;
           const aCatOver = (categoryCount[a.category] || 0) >= maxPerCat;
           const bCatOver = (categoryCount[b.category] || 0) >= maxPerCat;
           if (aCatOver !== bCatOver) return aCatOver ? 1 : -1;
@@ -656,19 +682,23 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
         for (const work of sortedWorks) {
           if (totalDuration + work.duration > maxDuration) {
             warnings.push(`时长超限跳过：「${work.title}」（${work.duration}分钟，总时长将达${totalDuration + work.duration}分钟）`);
+            skipped.push({ workId: work.id, title: work.title, reason: '时长超限' });
             continue;
           }
           if ((currentRegionCount[work.region] || 0) >= regionQuota) {
             warnings.push(`地区名额已满跳过：「${work.title}」（${work.region}）`);
+            skipped.push({ workId: work.id, title: work.title, reason: `${work.region}名额已满` });
             continue;
           }
-          const maxPerCat = session.maxWorksPerCategory || 3;
+          const maxPerCat = session.maxWorksPerCategory || state.maxWorksPerCategory;
           if ((categoryCount[work.category] || 0) >= maxPerCat) {
             warnings.push(`类别数量已满跳过：「${work.title}」`);
+            skipped.push({ workId: work.id, title: work.title, reason: '类别配额已满' });
             continue;
           }
 
           selected.push(work);
+          allocated.push({ workId: work.id, title: work.title });
           totalDuration += work.duration;
           currentRegionCount[work.region] = (currentRegionCount[work.region] || 0) + 1;
           categoryCount[work.category] = (categoryCount[work.category] || 0) + 1;
@@ -729,9 +759,53 @@ export const useFilmFestivalStore = create<FilmFestivalStore>()(
         return {
           sessionId,
           screenings: newScreenings,
+          allocated,
+          skipped,
           warnings,
           appliedRules,
         };
+      },
+
+      getAllocationWarnings: (sessionId) => {
+        const state = get();
+        const session = state.screeningSessions.find((s) => s.id === sessionId);
+        const warnings: string[] = [];
+        if (!session) return warnings;
+
+        const maxPerCat = session.maxWorksPerCategory || state.maxWorksPerCategory;
+        const maxPerRegion = state.maxWorksPerRegion;
+        const maxDuration = session.maxDuration || 180;
+
+        const categoryCount: Record<string, number> = {};
+        const regionCount: Record<string, number> = {};
+        let totalDuration = 0;
+
+        session.screenings.forEach((sc) => {
+          const w = state.works.find((ww) => ww.id === sc.workId);
+          if (!w) return;
+          categoryCount[w.category] = (categoryCount[w.category] || 0) + 1;
+          if (w.region) regionCount[w.region] = (regionCount[w.region] || 0) + 1;
+          totalDuration += w.duration;
+        });
+
+        for (const [catId, count] of Object.entries(categoryCount)) {
+          if (count > maxPerCat) {
+            const cat = state.categories.find((c) => c.id === catId);
+            warnings.push(`${cat?.name || catId} 数量超限：${count} 部（上限 ${maxPerCat}）`);
+          }
+        }
+
+        for (const [region, count] of Object.entries(regionCount)) {
+          if (count > maxPerRegion) {
+            warnings.push(`${region} 名额超限：${count} 部（上限 ${maxPerRegion}）`);
+          }
+        }
+
+        if (totalDuration > maxDuration) {
+          warnings.push(`总时长超限：${totalDuration} 分钟（上限 ${maxDuration} 分钟）`);
+        }
+
+        return warnings;
       },
 
       getSchedulingLogs: (sessionId) => {

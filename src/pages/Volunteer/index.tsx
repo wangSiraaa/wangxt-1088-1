@@ -854,12 +854,12 @@ export default function VolunteerPage() {
                                   <span>{session.name}</span>
                                 </span>
                               )}
-                              {log.basis && (
+                              {log.allocationBasis && (
                                 <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-xs font-medium">
                                   依据：
-                                  {log.basis === 'manual' ? '手动'
-                                    : log.basis === 'category' ? '分类配额'
-                                    : log.basis === 'duration' ? '时长约束'
+                                  {log.allocationBasis === 'manual' ? '手动'
+                                    : log.allocationBasis === 'category' ? '分类配额'
+                                    : log.allocationBasis === 'duration' ? '时长约束'
                                     : '地区名额'}
                                 </span>
                               )}
@@ -867,7 +867,7 @@ export default function VolunteerPage() {
                             <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mt-1.5">
                               <span className="text-xs text-gray-500 flex items-center space-x-1">
                                 <Clock className="w-3 h-3" />
-                                <span>{new Date(log.timestamp).toLocaleString('zh-CN')}</span>
+                                <span>{new Date(log.createdAt).toLocaleString('zh-CN')}</span>
                               </span>
                               <span className="text-xs text-gray-500 flex items-center space-x-1">
                                 <User className="w-3 h-3" />
@@ -902,9 +902,9 @@ export default function VolunteerPage() {
                           </div>
                         )}
 
-                        {log.note && (
+                        {log.detail && (
                           <div className="mt-2.5 p-2.5 bg-gray-50 rounded-lg border border-gray-100">
-                            <p className="text-xs text-gray-600">💡 {log.note}</p>
+                            <p className="text-xs text-gray-600">💡 {log.detail}</p>
                           </div>
                         )}
                       </div>

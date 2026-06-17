@@ -82,7 +82,7 @@ export interface ScreeningSession {
 export interface SchedulingLog {
   id: string;
   sessionId: string;
-  action: 'add' | 'remove' | 'reorder' | 'allocate';
+  action: 'add' | 'remove' | 'reorder' | 'allocate' | 'create' | 'update' | 'delete';
   workId?: string;
   detail: string;
   operator: string;
@@ -96,11 +96,15 @@ export interface ValidationResult {
   valid: boolean;
   errors: Record<string, string>;
   warnings: Record<string, string>;
+  errorList: string[];
+  warningList: string[];
 }
 
 export interface AllocationResult {
   sessionId: string;
   screenings: Screening[];
+  allocated: { workId: string; title: string }[];
+  skipped: { workId: string; title: string; reason: string }[];
   warnings: string[];
   appliedRules: AllocationBasis[];
 }
